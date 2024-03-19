@@ -54,12 +54,6 @@ inline int __attribute__((target_clones("fp16", "sve2-bitperm+fcma", "default"))
 // CHECK-NEXT:    ret i32 0
 //
 //
-// CHECK: Function Attrs: noinline nounwind optnone
-// CHECK-LABEL: @ftc.default(
-// CHECK-NEXT:  entry:
-// CHECK-NEXT:    ret i32 0
-//
-//
 // CHECK-LABEL: @ftc.resolver(
 // CHECK-NEXT:  resolver_entry:
 // CHECK-NEXT:    call void @__init_cpu_features_resolver()
@@ -94,12 +88,6 @@ inline int __attribute__((target_clones("fp16", "sve2-bitperm+fcma", "default"))
 // CHECK-NEXT:    ret i32 1
 //
 //
-// CHECK: Function Attrs: noinline nounwind optnone
-// CHECK-LABEL: @ftc_def.default(
-// CHECK-NEXT:  entry:
-// CHECK-NEXT:    ret i32 1
-//
-//
 // CHECK-LABEL: @ftc_def.resolver(
 // CHECK-NEXT:  resolver_entry:
 // CHECK-NEXT:    call void @__init_cpu_features_resolver()
@@ -128,12 +116,6 @@ inline int __attribute__((target_clones("fp16", "sve2-bitperm+fcma", "default"))
 // CHECK-NEXT:    ret i32 2
 //
 //
-// CHECK: Function Attrs: noinline nounwind optnone
-// CHECK-LABEL: @ftc_dup1.default(
-// CHECK-NEXT:  entry:
-// CHECK-NEXT:    ret i32 2
-//
-//
 // CHECK-LABEL: @ftc_dup1.resolver(
 // CHECK-NEXT:  resolver_entry:
 // CHECK-NEXT:    call void @__init_cpu_features_resolver()
@@ -156,12 +138,6 @@ inline int __attribute__((target_clones("fp16", "sve2-bitperm+fcma", "default"))
 //
 // CHECK: Function Attrs: noinline nounwind optnone
 // CHECK-LABEL: @ftc_dup2._McrcMdotprod(
-// CHECK-NEXT:  entry:
-// CHECK-NEXT:    ret i32 3
-//
-//
-// CHECK: Function Attrs: noinline nounwind optnone
-// CHECK-LABEL: @ftc_dup2.default(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    ret i32 3
 //
@@ -297,6 +273,30 @@ inline int __attribute__((target_clones("fp16", "sve2-bitperm+fcma", "default"))
 //
 //
 // CHECK: Function Attrs: noinline nounwind optnone
+// CHECK-LABEL: @ftc.default(
+// CHECK-NEXT:  entry:
+// CHECK-NEXT:    ret i32 0
+//
+//
+// CHECK: Function Attrs: noinline nounwind optnone
+// CHECK-LABEL: @ftc_def.default(
+// CHECK-NEXT:  entry:
+// CHECK-NEXT:    ret i32 1
+//
+//
+// CHECK: Function Attrs: noinline nounwind optnone
+// CHECK-LABEL: @ftc_dup1.default(
+// CHECK-NEXT:  entry:
+// CHECK-NEXT:    ret i32 2
+//
+//
+// CHECK: Function Attrs: noinline nounwind optnone
+// CHECK-LABEL: @ftc_dup2.default(
+// CHECK-NEXT:  entry:
+// CHECK-NEXT:    ret i32 3
+//
+//
+// CHECK: Function Attrs: noinline nounwind optnone
 // CHECK-LABEL: @ftc_inline1._MrngMsimd(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    ret i32 1
@@ -416,11 +416,11 @@ inline int __attribute__((target_clones("fp16", "sve2-bitperm+fcma", "default"))
 //.
 // CHECK: attributes #[[ATTR0:[0-9]+]] = { noinline nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+fp-armv8,+lse,+neon" }
 // CHECK: attributes #[[ATTR1:[0-9]+]] = { noinline nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+fp-armv8,+fullfp16,+neon,+sve,+sve2" }
-// CHECK: attributes #[[ATTR2:[0-9]+]] = { noinline nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
-// CHECK: attributes #[[ATTR3:[0-9]+]] = { noinline nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+fp-armv8,+neon,+sha2" }
-// CHECK: attributes #[[ATTR4:[0-9]+]] = { noinline nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+fp-armv8,+mte,+neon,+sha2" }
-// CHECK: attributes #[[ATTR5:[0-9]+]] = { noinline nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+fp-armv8,+neon" }
-// CHECK: attributes #[[ATTR6:[0-9]+]] = { noinline nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+crc,+dotprod,+fp-armv8,+neon" }
+// CHECK: attributes #[[ATTR2:[0-9]+]] = { noinline nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+fp-armv8,+neon,+sha2" }
+// CHECK: attributes #[[ATTR3:[0-9]+]] = { noinline nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+fp-armv8,+mte,+neon,+sha2" }
+// CHECK: attributes #[[ATTR4:[0-9]+]] = { noinline nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+fp-armv8,+neon" }
+// CHECK: attributes #[[ATTR5:[0-9]+]] = { noinline nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+crc,+dotprod,+fp-armv8,+neon" }
+// CHECK: attributes #[[ATTR6:[0-9]+]] = { noinline nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 // CHECK: attributes #[[ATTR7:[0-9]+]] = { noinline nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+fp-armv8,+neon,+rand" }
 // CHECK: attributes #[[ATTR8:[0-9]+]] = { noinline nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+predres,+rcpc" }
 // CHECK: attributes #[[ATTR9:[0-9]+]] = { noinline nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-features"="+fp-armv8,+fullfp16,+neon,+sve,+sve2,+sve2-aes,+wfxt" }
