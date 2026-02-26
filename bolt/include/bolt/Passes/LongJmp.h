@@ -13,6 +13,7 @@
 
 namespace llvm {
 namespace bolt {
+class DataflowInfoManager;
 
 /// LongJmp is veneer-insertion pass originally written for AArch64 that
 /// compensates for its short-range branches, typically done during linking. We
@@ -57,6 +58,9 @@ class LongJmpPass : public BinaryFunctionPass {
 
   /// Used to identify the stub size
   DenseMap<const BinaryBasicBlock *, int> StubBits;
+
+  /// Contains the scavenged register that may be used in a stub.
+  DenseMap<const BinaryBasicBlock *, MCPhysReg> ScratchRegForStub;
 
   /// Stats about number of stubs inserted
   uint32_t NumHotStubs{0};
@@ -142,14 +146,14 @@ class LongJmpPass : public BinaryFunctionPass {
                  uint64_t DotAddress) const;
 
   /// Expand the range of the stub in StubBB if necessary
-  Error relaxStub(BinaryBasicBlock &StubBB, bool &Modified);
+  Error relaxStub(BinaryBasicBlock &StubBB, MCPhysReg Reg, bool &Modified);
 
   /// Helper to resolve a symbol address according to our tentative layout
   uint64_t getSymbolAddress(const BinaryContext &BC, const MCSymbol *Target,
                             const BinaryBasicBlock *TgtBB) const;
 
   /// Relax function by adding necessary stubs or relaxing existing stubs
-  Error relax(BinaryFunction &BF, bool &Modified);
+  Error relax(BinaryFunction &BF, DataflowInfoManager &Info, bool &Modified);
 
 public:
   /// BinaryPass public interface

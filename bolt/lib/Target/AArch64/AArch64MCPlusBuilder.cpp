@@ -2625,18 +2625,21 @@ public:
   }
 
   void createLongJmp(InstructionListType &Seq, const MCSymbol *Target,
-                     MCContext *Ctx, bool IsTailCall) override {
+                     MCContext *Ctx, bool IsTailCall,
+                     MCPhysReg Reg = 0) override {
     // ip0 (r16) is reserved to the linker (refer to 5.3.1.1 of "Procedure Call
     //   Standard for the ARM 64-bit Architecture (AArch64)".
+    if (!Reg)
+      Reg = AArch64::X16;
     // The sequence of instructions we create here is the following:
-    //  movz ip0, #:abs_g3:<addr>
-    //  movk ip0, #:abs_g2_nc:<addr>
-    //  movk ip0, #:abs_g1_nc:<addr>
-    //  movk ip0, #:abs_g0_nc:<addr>
-    //  br ip0
+    //  movz Reg, #:abs_g3:<addr>
+    //  movk Reg, #:abs_g2_nc:<addr>
+    //  movk Reg, #:abs_g1_nc:<addr>
+    //  movk Reg, #:abs_g0_nc:<addr>
+    //  br Reg
     MCInst Inst;
     Inst.setOpcode(AArch64::MOVZXi);
-    Inst.addOperand(MCOperand::createReg(AArch64::X16));
+    Inst.addOperand(MCOperand::createReg(Reg));
     Inst.addOperand(MCOperand::createExpr(
         MCSpecifierExpr::create(Target, AArch64::S_ABS_G3, *Ctx)));
     Inst.addOperand(MCOperand::createImm(0x30));
@@ -2644,8 +2647,8 @@ public:
 
     Inst.clear();
     Inst.setOpcode(AArch64::MOVKXi);
-    Inst.addOperand(MCOperand::createReg(AArch64::X16));
-    Inst.addOperand(MCOperand::createReg(AArch64::X16));
+    Inst.addOperand(MCOperand::createReg(Reg));
+    Inst.addOperand(MCOperand::createReg(Reg));
     Inst.addOperand(MCOperand::createExpr(
         MCSpecifierExpr::create(Target, AArch64::S_ABS_G2_NC, *Ctx)));
     Inst.addOperand(MCOperand::createImm(0x20));
@@ -2653,8 +2656,8 @@ public:
 
     Inst.clear();
     Inst.setOpcode(AArch64::MOVKXi);
-    Inst.addOperand(MCOperand::createReg(AArch64::X16));
-    Inst.addOperand(MCOperand::createReg(AArch64::X16));
+    Inst.addOperand(MCOperand::createReg(Reg));
+    Inst.addOperand(MCOperand::createReg(Reg));
     Inst.addOperand(MCOperand::createExpr(
         MCSpecifierExpr::create(Target, AArch64::S_ABS_G1_NC, *Ctx)));
     Inst.addOperand(MCOperand::createImm(0x10));
@@ -2662,8 +2665,8 @@ public:
 
     Inst.clear();
     Inst.setOpcode(AArch64::MOVKXi);
-    Inst.addOperand(MCOperand::createReg(AArch64::X16));
-    Inst.addOperand(MCOperand::createReg(AArch64::X16));
+    Inst.addOperand(MCOperand::createReg(Reg));
+    Inst.addOperand(MCOperand::createReg(Reg));
     Inst.addOperand(MCOperand::createExpr(
         MCSpecifierExpr::create(Target, AArch64::S_ABS_G0_NC, *Ctx)));
     Inst.addOperand(MCOperand::createImm(0));
@@ -2671,21 +2674,23 @@ public:
 
     Inst.clear();
     Inst.setOpcode(AArch64::BR);
-    Inst.addOperand(MCOperand::createReg(AArch64::X16));
+    Inst.addOperand(MCOperand::createReg(Reg));
     if (IsTailCall)
       setTailCall(Inst);
     Seq.emplace_back(Inst);
   }
 
   void createShortJmp(InstructionListType &Seq, const MCSymbol *Target,
-                      MCContext *Ctx, bool IsTailCall) override {
+                      MCContext *Ctx, bool IsTailCall,
+                      MCPhysReg Reg = 0) override {
     // ip0 (r16) is reserved to the linker (refer to 5.3.1.1 of "Procedure Call
     //   Standard for the ARM 64-bit Architecture (AArch64)".
+    if (!Reg)
+      Reg = AArch64::X16;
     // The sequence of instructions we create here is the following:
-    //  adrp ip0, imm
-    //  add ip0, ip0, imm
-    //  br ip0
-    MCPhysReg Reg = AArch64::X16;
+    //  adrp Reg, imm
+    //  add Reg, Reg, imm
+    //  br Reg
     InstructionListType Insts = materializeAddress(Target, Ctx, Reg);
     Insts.emplace_back();
     MCInst &Inst = Insts.back();

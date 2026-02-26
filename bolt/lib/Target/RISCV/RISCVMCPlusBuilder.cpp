@@ -572,12 +572,13 @@ public:
   }
 
   void createShortJmp(InstructionListType &Seq, const MCSymbol *Target,
-                      MCContext *Ctx, bool IsTailCall) override {
+                      MCContext *Ctx, bool IsTailCall,
+                      MCPhysReg Reg = 0) override {
     // The sequence of instructions we create here is the following:
     //  auipc   a5, hi20(Target)
     //  addi    a5, a5, low12(Target)
     //  jr x5 => jalr x0, x5, 0
-    MCPhysReg Reg = RISCV::X5;
+    Reg = RISCV::X5;
     InstructionListType Insts = materializeAddress(Target, Ctx, Reg);
     Insts.emplace_back();
     MCInst &Inst = Insts.back();

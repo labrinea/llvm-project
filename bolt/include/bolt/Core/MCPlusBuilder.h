@@ -1834,12 +1834,14 @@ public:
   }
 
   virtual void createLongJmp(InstructionListType &Seq, const MCSymbol *Target,
-                             MCContext *Ctx, bool IsTailCall = false) {
+                             MCContext *Ctx, bool IsTailCall = false,
+                             MCPhysReg Reg = 0) {
     llvm_unreachable("not implemented");
   }
 
   virtual void createShortJmp(InstructionListType &Seq, const MCSymbol *Target,
-                              MCContext *Ctx, bool IsTailCall = false) {
+                              MCContext *Ctx, bool IsTailCall = false,
+                              MCPhysReg Reg = 0) {
     llvm_unreachable("not implemented");
   }
 

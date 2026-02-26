@@ -11,7 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "bolt/Passes/LongJmp.h"
+#include "bolt/Core/BinaryFunctionCallGraph.h"
 #include "bolt/Core/ParallelUtilities.h"
+#include "bolt/Passes/DataflowInfoManager.h"
 #include "bolt/Utils/CommandLineOpts.h"
 #include "llvm/Support/MathExtras.h"
 
@@ -37,20 +39,22 @@ namespace bolt {
 
 constexpr unsigned ColdFragAlign = 16;
 
-static void relaxStubToShortJmp(BinaryBasicBlock &StubBB, const MCSymbol *Tgt) {
+static void relaxStubToShortJmp(BinaryBasicBlock &StubBB, const MCSymbol *Tgt,
+                                MCPhysReg Reg) {
   const BinaryContext &BC = StubBB.getFunction()->getBinaryContext();
   InstructionListType Seq;
-  BC.MIB->createShortJmp(Seq, Tgt, BC.Ctx.get());
+  BC.MIB->createShortJmp(Seq, Tgt, BC.Ctx.get(), false, Reg);
   StubBB.clear();
   StubBB.addInstructions(Seq.begin(), Seq.end());
   if (BC.usesBTI())
     BC.MIB->applyBTIFixupToTarget(StubBB);
 }
 
-static void relaxStubToLongJmp(BinaryBasicBlock &StubBB, const MCSymbol *Tgt) {
+static void relaxStubToLongJmp(BinaryBasicBlock &StubBB, const MCSymbol *Tgt,
+                               MCPhysReg Reg) {
   const BinaryContext &BC = StubBB.getFunction()->getBinaryContext();
   InstructionListType Seq;
-  BC.MIB->createLongJmp(Seq, Tgt, BC.Ctx.get());
+  BC.MIB->createLongJmp(Seq, Tgt, BC.Ctx.get(), false, Reg);
   StubBB.clear();
   StubBB.addInstructions(Seq.begin(), Seq.end());
   if (BC.usesBTI())
@@ -480,7 +484,8 @@ uint64_t LongJmpPass::getSymbolAddress(const BinaryContext &BC,
   return Iter->second;
 }
 
-Error LongJmpPass::relaxStub(BinaryBasicBlock &StubBB, bool &Modified) {
+Error LongJmpPass::relaxStub(BinaryBasicBlock &StubBB, MCPhysReg Reg,
+                             bool &Modified) {
   BinaryFunction &Func = *StubBB.getFunction();
   BinaryContext &BC = Func.getBinaryContext();
   const int Bits = StubBits[&StubBB];
@@ -514,7 +519,7 @@ Error LongJmpPass::relaxStub(BinaryBasicBlock &StubBB, bool &Modified) {
                       << Twine::utohexstr(PCRelTgtAddress)
                       << " RealTargetSym = " << RealTargetSym->getName()
                       << "\n");
-    relaxStubToShortJmp(StubBB, RealTargetSym);
+    relaxStubToShortJmp(StubBB, RealTargetSym, Reg);
     StubBits[&StubBB] = RangeShortJmp;
     Modified = true;
     return Error::success();
@@ -529,7 +534,7 @@ Error LongJmpPass::relaxStub(BinaryBasicBlock &StubBB, bool &Modified) {
   LLVM_DEBUG(dbgs() << "Relaxing stub to long jump. PCRelTgtAddress = "
                     << Twine::utohexstr(PCRelTgtAddress)
                     << " RealTargetSym = " << RealTargetSym->getName() << "\n");
-  relaxStubToLongJmp(StubBB, RealTargetSym);
+  relaxStubToLongJmp(StubBB, RealTargetSym, Reg);
   StubBits[&StubBB] = static_cast<int>(BC.AsmInfo->getCodePointerSize() * 8);
   Modified = true;
   return Error::success();
@@ -562,7 +567,8 @@ bool LongJmpPass::needsStub(const BinaryBasicBlock &BB, const MCInst &Inst,
   return PCOffset < MinVal || PCOffset > MaxVal;
 }
 
-Error LongJmpPass::relax(BinaryFunction &Func, bool &Modified) {
+Error LongJmpPass::relax(BinaryFunction &Func, DataflowInfoManager &Info,
+                         bool &Modified) {
   const BinaryContext &BC = Func.getBinaryContext();
 
   assert(BC.isAArch64() && "Unsupported arch");
@@ -619,12 +625,23 @@ Error LongJmpPass::relax(BinaryFunction &Func, bool &Modified) {
       if (!Func.isSimple())
         InsertionPoint = &*std::prev(Func.end());
 
+      MCPhysReg Reg = 0;
+      if (opts::AssumeABI) {
+        BitVector LiveOut = Info.getLivenessAnalysis().getLiveOut(Inst);
+        Reg = Info.getLivenessAnalysis().scavengeRegFromState(LiveOut);
+      }
+      if (!Reg && !BC.MIB->isCall(Inst)) {
+        BC.errs() << "BOLT-ERROR: no scratch register to relax stub\n";
+        exit(1);
+      }
+
       // Create a stub to handle a far-away target
-      Insertions.emplace_back(InsertionPoint,
-                              replaceTargetWithStub(BB, Inst, DotAddress,
-                                                    InsertionPoint == Frontier
-                                                        ? FrontierAddress
-                                                        : DotAddress));
+      std::unique_ptr<BinaryBasicBlock> Stub = replaceTargetWithStub(
+          BB, Inst, DotAddress,
+          InsertionPoint == Frontier ? FrontierAddress : DotAddress);
+
+      ScratchRegForStub[Stub.get()] = Reg;
+      Insertions.emplace_back(InsertionPoint, std::move(Stub));
 
       DotAddress += InsnSize;
     }
@@ -635,7 +652,7 @@ Error LongJmpPass::relax(BinaryFunction &Func, bool &Modified) {
     if (!Stubs[&Func].count(&BB) || !BB.isValid())
       continue;
 
-    if (auto E = relaxStub(BB, Modified))
+    if (auto E = relaxStub(BB, ScratchRegForStub[&BB], Modified))
       return Error(std::move(E));
   }
 
@@ -933,6 +950,8 @@ Error LongJmpPass::runOnFunctions(BinaryContext &BC) {
   }
 
   BC.outs() << "BOLT-INFO: Starting stub-insertion pass\n";
+  BinaryFunctionCallGraph CG(buildCallGraph(BC));
+  RegAnalysis RA(BC, &BC.getBinaryFunctions(), &CG);
   BinaryFunctionListType Sorted = BC.getOutputBinaryFunctions();
   bool Modified;
   uint32_t Iterations = 0;
@@ -942,7 +961,8 @@ Error LongJmpPass::runOnFunctions(BinaryContext &BC) {
     tentativeLayout(BC, Sorted);
     updateStubGroups();
     for (BinaryFunction *Func : Sorted) {
-      if (auto E = relax(*Func, Modified))
+      DataflowInfoManager Info(*Func, &RA, nullptr);
+      if (auto E = relax(*Func, Info, Modified))
         return Error(std::move(E));
       // Don't ruin non-simple functions, they can't afford to have the layout
       // changed.

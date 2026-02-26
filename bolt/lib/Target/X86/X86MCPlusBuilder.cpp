@@ -2914,7 +2914,8 @@ public:
   }
 
   void createShortJmp(InstructionListType &Seq, const MCSymbol *Target,
-                      MCContext *Ctx, bool IsTailCall) override {
+                      MCContext *Ctx, bool IsTailCall,
+                      MCPhysReg Reg = 0) override {
     Seq.clear();
     MCInst Inst;
     Inst.setOpcode(X86::JMP_1);
