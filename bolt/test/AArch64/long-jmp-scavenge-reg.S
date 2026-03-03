@@ -4,10 +4,16 @@
 
 # RUN: %clang %cflags -Wl,-q %s -o %t
 # RUN: link_fdata --no-lbr %s %t %t.fdata
+# RUN: not llvm-bolt %t -o %t.bolt --data %t.fdata -split-functions 2>&1 \
+# RUN:   | FileCheck %s --check-prefix=NOABI
+
+# RUN: %clang %cflags -Wl,-q %s -o %t
+# RUN: link_fdata --no-lbr %s %t %t.fdata
 # RUN: llvm-bolt %t -o %t.bolt --data %t.fdata -split-functions --assume-abi \
 # RUN:   --print-split --print-longjmp 2>&1 | FileCheck %s
 
-# CHECK: BOLT-INFO: Starting stub-insertion pass
+# NOABI: BOLT-INFO: Starting stub-insertion pass
+# NOABI: BOLT-ERROR: no scratch register to relax stub
 
   .globl fn1
   .type fn1, %function
@@ -23,6 +29,8 @@ fn1:
 .Lcold_fn1:
 ## LiveIn = { x0-x7 }
     ret
+
+# CHECK: BOLT-INFO: Starting stub-insertion pass
 
 # CHECK: Binary Function "fn1(*2)" after long-jmp
 
