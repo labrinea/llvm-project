@@ -4,28 +4,24 @@
 
 # RUN: %clang %s %cflags -Wl,-q -o %t -mbranch-protection=bti -Wl,-z,force-bti
 # RUN: link_fdata --no-lbr %s %t %t.fdata
-# RUN: not llvm-bolt %t -o %t.bolt --data %t.fdata -split-functions \
-# RUN: --print-split --print-only foo --print-longjmp 2>&1 | FileCheck %s
 # RUN: llvm-bolt %t -o %t.bolt --data %t.fdata -split-functions --assume-abi \
-# RUN: --print-split --print-only foo --print-longjmp 2>&1 | FileCheck %s --check-prefixes=ASSUME-ABI
+# RUN:   --print-split --print-only foo --print-longjmp 2>&1 | FileCheck %s
 
-# CHECK: BOLT-ERROR: no scratch register to relax stub
+# CHECK: BOLT-INFO: Starting stub-insertion pass
+# CHECK: Binary Function "foo" after long-jmp
 
-# ASSUME-ABI: BOLT-INFO: Starting stub-insertion pass
-# ASSUME-ABI: Binary Function "foo" after long-jmp
+# CHECK:      cmp     x0, #0x0
+# CHECK-NEXT: Successors: .LStub0
 
-# ASSUME-ABI:      cmp     x0, #0x0
-# ASSUME-ABI-NEXT: Successors: .LStub0
+# CHECK:      adrp    x0, .Ltmp0
+# CHECK-NEXT: add     x0, x0, :lo12:.Ltmp0
+# CHECK-NEXT: br      x0 # UNKNOWN CONTROL FLOW
 
-# ASSUME-ABI:      adrp    x0, .Ltmp0
-# ASSUME-ABI-NEXT: add     x0, x0, :lo12:.Ltmp0
-# ASSUME-ABI-NEXT: br      x0 # UNKNOWN CONTROL FLOW
+# CHECK: -------   HOT-COLD SPLIT POINT   -------
 
-# ASSUME-ABI: -------   HOT-COLD SPLIT POINT   -------
-
-# ASSUME-ABI:      bti     j
-# ASSUME-ABI-NEXT: mov     x0, #0x2
-# ASSUME-ABI-NEXT: ret
+# CHECK:      bti     j
+# CHECK-NEXT: mov     x0, #0x2
+# CHECK-NEXT: ret
 
   .text
   .globl  foo
