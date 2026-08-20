@@ -50,6 +50,7 @@ namespace opts {
 
 extern cl::opt<bool> LargeCodeModel;
 extern cl::opt<bool> UpdateDebugSections;
+extern cl::opt<bool> HotFunctionsAtEnd;
 
 static cl::opt<bool>
     NoHugePages("no-huge-pages",
@@ -340,6 +341,48 @@ bool BinaryContext::forceSymbolRelocations(StringRef SymbolName) const {
     return true;
 
   return false;
+}
+
+bool BinaryContext::compareSectionNames(StringRef A, StringRef B) const {
+  if (A == B)
+    return false;
+
+  // If both A and B have names starting with ".text.cold", then
+  // - if opts::HotFunctionsAtEnd is true, we want order
+  //   ".text.cold.T", ".text.cold.T-1", ... ".text.cold.1", ".text.cold"
+  // - if opts::HotFunctionsAtEnd is false, we want order
+  //   ".text.cold", ".text.cold.1", ... ".text.cold.T-1", ".text.cold.T"
+  if (A.starts_with(getColdCodeSectionName()) &&
+      B.starts_with(getColdCodeSectionName())) {
+    if (A.size() != B.size())
+      return opts::HotFunctionsAtEnd ? A.size() > B.size()
+                                     : A.size() < B.size();
+    return opts::HotFunctionsAtEnd ? A > B : A < B;
+  }
+
+  // Place hot text movers before anything else.
+  if (opts::HotText) {
+    if (A == getHotTextMoverSectionName())
+      return true;
+    if (B == getHotTextMoverSectionName())
+      return false;
+  }
+
+  // Depending on opts::HotFunctionsAtEnd, place main and warm sections in
+  // order.
+  if (opts::HotFunctionsAtEnd) {
+    if (B == getMainCodeSectionName())
+      return true;
+    if (A == getMainCodeSectionName())
+      return false;
+    return B == getWarmCodeSectionName();
+  } else {
+    if (A == getMainCodeSectionName())
+      return true;
+    if (B == getMainCodeSectionName())
+      return false;
+    return A == getWarmCodeSectionName();
+  }
 }
 
 std::unique_ptr<MCObjectWriter>
@@ -2689,7 +2732,9 @@ BinaryContext::createInstructionPatch(uint64_t Address,
 BinaryFunction *
 BinaryContext::createThunkBinaryFunction(const std::string &Name) {
   static NameResolver NR;
-  return createInjectedBinaryFunction(NR.uniquify(Name));
+  BinaryFunction *BF = createInjectedBinaryFunction(NR.uniquify(Name));
+  BF->setIsThunk(true);
+  return BF;
 }
 
 std::pair<size_t, size_t>

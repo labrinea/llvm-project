@@ -4367,52 +4367,11 @@ std::vector<BinarySection *> RewriteInstance::getCodeSections() {
     if (Section.hasValidSectionID())
       CodeSections.emplace_back(&Section);
 
-  auto compareSections = [&](const BinarySection *A, const BinarySection *B) {
-    if (A == B)
-      return false;
-
-    // If both A and B have names starting with ".text.cold", then
-    // - if opts::HotFunctionsAtEnd is true, we want order
-    //   ".text.cold.T", ".text.cold.T-1", ... ".text.cold.1", ".text.cold"
-    // - if opts::HotFunctionsAtEnd is false, we want order
-    //   ".text.cold", ".text.cold.1", ... ".text.cold.T-1", ".text.cold.T"
-    if (A->getName().starts_with(BC->getColdCodeSectionName()) &&
-        B->getName().starts_with(BC->getColdCodeSectionName())) {
-      if (A->getName().size() != B->getName().size())
-        return (opts::HotFunctionsAtEnd)
-                   ? (A->getName().size() > B->getName().size())
-                   : (A->getName().size() < B->getName().size());
-      return (opts::HotFunctionsAtEnd) ? (A->getName() > B->getName())
-                                       : (A->getName() < B->getName());
-    }
-
-    // Place hot text movers before anything else.
-    if (opts::HotText) {
-      if (A->getName() == BC->getHotTextMoverSectionName())
-        return true;
-      if (B->getName() == BC->getHotTextMoverSectionName())
-        return false;
-    }
-
-    // Depending on opts::HotFunctionsAtEnd, place main and warm sections in
-    // order.
-    if (opts::HotFunctionsAtEnd) {
-      if (B->getName() == BC->getMainCodeSectionName())
-        return true;
-      if (A->getName() == BC->getMainCodeSectionName())
-        return false;
-      return (B->getName() == BC->getWarmCodeSectionName());
-    } else {
-      if (A->getName() == BC->getMainCodeSectionName())
-        return true;
-      if (B->getName() == BC->getMainCodeSectionName())
-        return false;
-      return (A->getName() == BC->getWarmCodeSectionName());
-    }
-  };
-
   // Determine the order of sections.
-  llvm::stable_sort(CodeSections, compareSections);
+  llvm::stable_sort(
+      CodeSections, [&](const BinarySection *A, const BinarySection *B) {
+        return BC->compareSectionNames(A->getName(), B->getName());
+      });
 
 #ifndef NDEBUG
   // Verify that the order of sections and functions is consistent.
@@ -4422,7 +4381,7 @@ std::vector<BinarySection *> RewriteInstance::getCodeSections() {
 
   uint32_t LastIndex = 0;
   for (const BinaryFunction *BF : BC->getOutputBinaryFunctions()) {
-    if (!BF->isEmitted() || BF->isPatch())
+    if (!BF->isEmitted() || BF->isPatch() || BF->isThunk())
       continue;
 
     ErrorOr<BinarySection &> Sec = BF->getCodeSection();
